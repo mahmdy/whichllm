@@ -26,6 +26,7 @@ jobs:
       matrix:
         language:
           - python
+          - actions
 
     steps:
       - name: Checkout repository
