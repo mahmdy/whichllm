@@ -1,1 +1,137 @@
+```yaml
+name: Security Checks
 
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    # Weekly full security scan
+    - cron: "30 2 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  # ------------------------------------------------------------
+  # CodeQL - source code security analysis
+  # ------------------------------------------------------------
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - python
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
+
+  # ------------------------------------------------------------
+  # Python dependency vulnerability scanning
+  # ------------------------------------------------------------
+  dependency-audit:
+    name: Python Dependency Audit
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: "0.12.13"
+          enable-cache: true
+
+      - name: Install project dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Run pip-audit
+        run: |
+          uv run --with pip-audit pip-audit \
+            --strict \
+            --desc \
+            --format columns
+
+
+  # ------------------------------------------------------------
+  # Bandit - Python security linting
+  # ------------------------------------------------------------
+  bandit:
+    name: Bandit
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: "0.12.13"
+          enable-cache: true
+
+      - name: Run Bandit
+        run: |
+          uvx bandit \
+            --recursive src \
+            --severity-level medium \
+            --confidence-level medium
+
+
+  # ------------------------------------------------------------
+  # Gitleaks - secrets detection
+  # ------------------------------------------------------------
+  gitleaks:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
