@@ -1,4 +1,3 @@
-```yaml
 name: Security Checks
 
 on:
@@ -7,24 +6,20 @@ on:
       - main
   pull_request:
   schedule:
-    # Weekly full security scan
     - cron: "30 2 * * 1"
   workflow_dispatch:
 
 permissions: {}
 
 jobs:
-  # ------------------------------------------------------------
-  # CodeQL - source code security analysis
-  # ------------------------------------------------------------
   codeql:
     name: CodeQL
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
       security-events: write
       actions: read
+    timeout-minutes: 20
 
     strategy:
       fail-fast: false
@@ -34,40 +29,36 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@311b4ee155dcdab395044f00946f664bd51ff173 # v4
         with:
           languages: ${{ matrix.language }}
           queries: security-extended
 
       - name: Analyze
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@311b4ee155dcdab395044f00946f664bd51ff173 # v4
         with:
           category: "/language:${{ matrix.language }}"
 
-
-  # ------------------------------------------------------------
-  # Python dependency vulnerability scanning
-  # ------------------------------------------------------------
   dependency-audit:
     name: Python Dependency Audit
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           version: "0.12.13"
           enable-cache: true
@@ -77,61 +68,52 @@ jobs:
 
       - name: Run pip-audit
         run: |
-          uv run --with pip-audit pip-audit \
+          uv run --with pip-audit==2.10.1 pip-audit \
             --strict \
             --desc \
             --format columns
 
-
-  # ------------------------------------------------------------
-  # Bandit - Python security linting
-  # ------------------------------------------------------------
   bandit:
     name: Bandit
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           version: "0.12.13"
           enable-cache: true
 
       - name: Run Bandit
         run: |
-          uvx bandit \
+          uvx bandit==1.9.4 \
             --recursive src \
             --severity-level medium \
             --confidence-level medium
 
-
-  # ------------------------------------------------------------
-  # Gitleaks - secrets detection
-  # ------------------------------------------------------------
   gitleaks:
     name: Gitleaks
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Scan for secrets
-        uses: gitleaks/gitleaks-action@v3
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```

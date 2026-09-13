@@ -6,20 +6,31 @@ on:
   pull_request:
     branches: [main]
 
+permissions: {}
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@v5
-      - name: Set up uv and Python ${{ matrix.python-version }}
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: ${{ matrix.python-version }}
+          persist-credentials: false
+
+      - name: Set up uv and Python ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          python-version: "${{ matrix.python-version }}"
+
       - name: Install dependencies
         run: uv sync --locked --dev
+
       - name: Run tests
         run: uv run --locked pytest
