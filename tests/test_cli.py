@@ -1547,7 +1547,7 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
             )
         ]
 
-    def fake_generate_chat_script(model, variant, context_length, cpu_only):
+    def fake_generate_chat_script(model, variant, context_length, cpu_only, trust_remote_code=False):
         captured["model_id"] = model.id
         captured["variant"] = variant
         return "print('ok')"
@@ -1575,7 +1575,7 @@ def test_run_auto_pick_resolves_ranked_gguf_before_launch(monkeypatch):
     assert captured["quant_filter"] == "Q4_K_M"
     assert captured["model_id"] == "unsloth/Qwen3.6-27B-GGUF"
     assert captured["variant"].filename == "q4.gguf"
-    assert "llama-cpp-python" in captured["cmd"]
+    assert "llama-cpp-python==0.3.35" in captured["cmd"]
     assert "transformers" not in captured["cmd"]
 
 

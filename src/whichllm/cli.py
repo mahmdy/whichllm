@@ -1111,25 +1111,41 @@ def _pick_gguf_variant(model, quant_filter: str | None = None):
 
 
 def _resolve_model_deps(model, variant) -> tuple[list[str], str]:
-    """Determine pip dependencies and script type for a model.
+    """Determine pinned runtime dependencies and script type for a model.
 
-    Returns (deps, script_type) where script_type is 'gguf' or 'transformers'.
+    Returns (deps, script_type), where script_type is 'gguf' or
+    'transformers'. Deprecated AWQ and GPTQ backends are rejected.
     """
+    _PINNED_RUNTIME_DEPS = {
+        "llama-cpp-python": "llama-cpp-python==0.3.35",
+        "huggingface-hub": "huggingface-hub==1.31.0",
+        "transformers": "transformers==5.17.0",
+        "torch": "torch==2.14.0",
+        "accelerate": "accelerate==1.15.0",
+    }
+
     if variant:
-        return ["llama-cpp-python", "huggingface-hub"], "gguf"
+        return [
+            _PINNED_RUNTIME_DEPS["llama-cpp-python"],
+            _PINNED_RUNTIME_DEPS["huggingface-hub"],
+        ], "gguf"
 
     from whichllm.engine.quantization import infer_non_gguf_quant_type
 
     qt = infer_non_gguf_quant_type(model.id)
-    base = ["transformers", "torch", "accelerate"]
-    if qt == "AWQ":
-        return [*base, "autoawq"], "transformers"
-    if qt == "GPTQ":
-        return [*base, "auto-gptq"], "transformers"
-    return base, "transformers"
+    if qt in {"AWQ", "GPTQ"}:
+        raise ValueError(
+            f"Quantization backend {qt} is deprecated/stale and is not supported "
+            "by whichllm's secure runtime."
+        )
 
+    return [
+        _PINNED_RUNTIME_DEPS["transformers"],
+        _PINNED_RUNTIME_DEPS["torch"],
+        _PINNED_RUNTIME_DEPS["accelerate"],
+    ], "transformers"
 
-def _generate_chat_script(model, variant, context_length: int, cpu_only: bool) -> str:
+def _generate_chat_script(model, variant, context_length: int, cpu_only: bool, trust_remote_code: bool = False) -> str:
     """Generate a self-contained Python chat script for any model type."""
     if variant:
         n_gpu = 0 if cpu_only else -1
@@ -1187,12 +1203,12 @@ model_id = {model.id!r}
 offload_folder = tempfile.mkdtemp(prefix="whichllm_transformers_offload_")
 try:
     print(f"Loading {{model_id}}...")
-    tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code={trust_remote_code!r})
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         device_map={device_map},
         torch_dtype={dtype},
-        trust_remote_code=True,
+        trust_remote_code={trust_remote_code!r},
         offload_folder=offload_folder,
     )
     print("Ready! Type 'exit' to quit.\\n")
@@ -1255,6 +1271,11 @@ def run(
     ),
     refresh: bool = typer.Option(False, "--refresh", help="Ignore cache"),
     cpu_only: bool = typer.Option(False, "--cpu-only", help="CPU-only mode"),
+    trust_remote_code: bool = typer.Option(
+        False,
+        "--trust-remote-code",
+        help="Allow execution of custom code from trusted Hugging Face model repositories",
+    ),
 ):
     """Download and chat with a model. Picks the best one if none specified."""
     import os
@@ -1359,7 +1380,7 @@ def run(
     if variant is None:
         variant = _pick_gguf_variant(model, quant)
     deps, script_type = _resolve_model_deps(model, variant)
-    script = _generate_chat_script(model, variant, context_length, cpu_only)
+    script = _generate_chat_script(model, variant, context_length, cpu_only, trust_remote_code)
 
     fmt = variant.quant_type if variant else script_type.upper()
     console.print(f"\n[bold green]Running {model.id}[/] [dim]({fmt})[/]")
@@ -1388,6 +1409,11 @@ def snippet(
         None, "--quant", "-q", help="Quantization type"
     ),
     refresh: bool = typer.Option(False, "--refresh", help="Ignore cache"),
+    trust_remote_code: bool = typer.Option(
+        False,
+        "--trust-remote-code",
+        help="Allow execution of custom code from trusted Hugging Face model repositories",
+    ),
 ):
     """Print a ready-to-run Python script for a model."""
     from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -1438,9 +1464,9 @@ print(output["choices"][0]["message"]["content"])
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 model_id = {model.id!r}
-tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code={trust_remote_code!r})
 model = AutoModelForCausalLM.from_pretrained(
-    model_id, device_map="auto", torch_dtype="auto", trust_remote_code=True,
+    model_id, device_map="auto", torch_dtype="auto", trust_remote_code={trust_remote_code!r},
 )
 
 inputs = tokenizer("Hello!", return_tensors="pt").to(model.device)
